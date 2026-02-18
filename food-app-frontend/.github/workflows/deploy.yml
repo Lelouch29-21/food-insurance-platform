@@ -1,0 +1,33 @@
+name: Deploy Food Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'food-app-frontend/**'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: food-app-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
+        env:
+          GH_PAGES: 'true'
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: food-app-frontend/dist
+      - uses: actions/deploy-pages@v4
