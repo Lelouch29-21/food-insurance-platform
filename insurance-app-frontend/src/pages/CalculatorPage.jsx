@@ -13,10 +13,15 @@ export default function CalculatorPage() {
   });
 
   useEffect(() => {
-    api.get('/insurance/plans').then((res) => {
-      const liveRate = res.data.plans?.[0]?.currentInterestRate || 0;
-      setRate(liveRate);
-    });
+    api
+      .get('/insurance/plans')
+      .then((res) => {
+        const liveRate = res.data.plans?.[0]?.currentInterestRate || 0;
+        setRate(liveRate);
+      })
+      .catch(() => {
+        setRate(7.1);
+      });
   }, []);
 
   const values = watch();

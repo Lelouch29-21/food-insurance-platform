@@ -1,0 +1,86 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Food App deps
+        working-directory: food-app-frontend
+        run: npm ci
+
+      - name: Build Food App
+        working-directory: food-app-frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          BASE_PATH: /food-insurance-platform/food-app-frontend/
+          VITE_USE_HASH_ROUTER: 'true'
+        run: npm run build
+
+      - name: Install Insurance App deps
+        working-directory: insurance-app-frontend
+        run: npm ci
+
+      - name: Build Insurance App
+        working-directory: insurance-app-frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          BASE_PATH: /food-insurance-platform/insurance-app-frontend/
+          VITE_USE_HASH_ROUTER: 'true'
+        run: npm run build
+
+      - name: Assemble Pages artifact
+        run: |
+          mkdir -p _site/food-app-frontend _site/insurance-app-frontend
+          cp -R food-app-frontend/dist/* _site/food-app-frontend/
+          cp -R insurance-app-frontend/dist/* _site/insurance-app-frontend/
+          cp food-app-frontend/dist/index.html _site/food-app-frontend/404.html
+          cp insurance-app-frontend/dist/index.html _site/insurance-app-frontend/404.html
+          cat > _site/index.html << 'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Food + Insurance Platform</title>
+              <style>
+                body { font-family: Arial, sans-serif; margin: 40px; background: #f8fafc; color: #0f172a; }
+                a { display: block; margin: 12px 0; font-size: 18px; }
+              </style>
+            </head>
+            <body>
+              <h1>Food + Insurance Platform</h1>
+              <a href="./food-app-frontend/">Open Food App</a>
+              <a href="./insurance-app-frontend/">Open Insurance App</a>
+            </body>
+          </html>
+          HTML
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

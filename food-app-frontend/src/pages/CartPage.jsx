@@ -3,6 +3,12 @@ import toast from 'react-hot-toast';
 import api from '../api/client';
 import { useCartStore } from '../store/cartStore';
 
+const fallbackPlans = [
+  { _id: 'local-plan-1', name: 'ABSLI DigiShield Plan', currentInterestRate: 6.8 },
+  { _id: 'local-plan-2', name: 'ABSLI Guaranteed Milestone Plan', currentInterestRate: 7.1 },
+  { _id: 'local-plan-3', name: 'ABSLI Empower Pension Plan', currentInterestRate: 7.4 },
+];
+
 export default function CartPage() {
   const { items, remove, clear } = useCartStore();
   const [plans, setPlans] = useState([]);
@@ -10,10 +16,18 @@ export default function CartPage() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    api.get('/insurance/plans').then((res) => {
-      setPlans(res.data.plans);
-      setSelectedPlanId(res.data.plans?.[0]?._id || '');
-    });
+    async function loadPlans() {
+      try {
+        const res = await api.get('/insurance/plans');
+        setPlans(res.data.plans || []);
+        setSelectedPlanId(res.data.plans?.[0]?._id || '');
+      } catch {
+        setPlans(fallbackPlans);
+        setSelectedPlanId(fallbackPlans[0]._id);
+      }
+    }
+
+    loadPlans();
   }, []);
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -24,6 +38,11 @@ export default function CartPage() {
       planId: selectedPlanId,
       items: items.map((item) => ({ foodItemId: item._id, quantity: item.quantity })),
     };
+
+    if (selectedPlanId.startsWith('local-plan-')) {
+      toast.error('Live checkout requires backend API deployment');
+      return;
+    }
 
     try {
       const { data } = await api.post('/orders', payload);

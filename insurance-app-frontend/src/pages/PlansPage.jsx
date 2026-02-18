@@ -2,11 +2,39 @@ import { useEffect, useMemo, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import api from '../api/client';
 
+const fallbackPlans = [
+  {
+    _id: 'local-plan-1',
+    name: 'ABSLI DigiShield Plan',
+    provider: 'Aditya Birla Sun Life Insurance (Demo Data)',
+    baseInterestRate: 6.8,
+    currentInterestRate: 6.8,
+  },
+  {
+    _id: 'local-plan-2',
+    name: 'ABSLI Guaranteed Milestone Plan',
+    provider: 'Aditya Birla Sun Life Insurance (Demo Data)',
+    baseInterestRate: 7.1,
+    currentInterestRate: 7.1,
+  },
+  {
+    _id: 'local-plan-3',
+    name: 'ABSLI Empower Pension Plan',
+    provider: 'Aditya Birla Sun Life Insurance (Demo Data)',
+    baseInterestRate: 7.4,
+    currentInterestRate: 7.4,
+  },
+];
+
 export default function PlansPage() {
   const [plans, setPlans] = useState([]);
 
   useEffect(() => {
-    const load = () => api.get('/insurance/plans').then((res) => setPlans(res.data.plans));
+    const load = () =>
+      api
+        .get('/insurance/plans')
+        .then((res) => setPlans(res.data.plans || []))
+        .catch(() => setPlans(fallbackPlans));
     load();
     const id = setInterval(load, 10000);
     return () => clearInterval(id);

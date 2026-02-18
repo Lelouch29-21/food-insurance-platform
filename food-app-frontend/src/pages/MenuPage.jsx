@@ -3,12 +3,30 @@ import toast from 'react-hot-toast';
 import api from '../api/client';
 import { useCartStore } from '../store/cartStore';
 
+const fallbackItems = [
+  { _id: 'local-food-1', name: 'Grilled Paneer Bowl', category: 'VEG', price: 350, healthScore: 84 },
+  { _id: 'local-food-2', name: 'Protein Chicken Wrap', category: 'NON_VEG', price: 420, healthScore: 72 },
+  { _id: 'local-food-3', name: 'Cold Brew Coffee', category: 'BEVERAGE', price: 220, healthScore: 35 },
+  { _id: 'local-food-4', name: 'Fruit Yogurt Parfait', category: 'DESSERT', price: 280, healthScore: 66 },
+  { _id: 'local-food-5', name: 'Veggie Quinoa Salad', category: 'VEG', price: 390, healthScore: 91 },
+  { _id: 'local-food-6', name: 'Cheese Burst Pizza Slice', category: 'NON_VEG', price: 500, healthScore: 20 },
+];
+
 export default function MenuPage() {
   const [items, setItems] = useState([]);
   const add = useCartStore((s) => s.add);
 
   useEffect(() => {
-    api.get('/food').then((res) => setItems(res.data.items));
+    async function loadMenu() {
+      try {
+        const res = await api.get('/food');
+        setItems(res.data.items || []);
+      } catch {
+        setItems(fallbackItems);
+      }
+    }
+
+    loadMenu();
   }, []);
 
   return (
