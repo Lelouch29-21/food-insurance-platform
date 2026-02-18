@@ -31,6 +31,7 @@ export default function CartPage() {
   }, []);
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const checkout = async () => {
     if (!items.length) return;
@@ -55,48 +56,58 @@ export default function CartPage() {
   };
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10">
-      <h1 className="mb-6 text-3xl font-bold">Cart</h1>
-      <div className="space-y-3">
-        {items.map((item) => (
-          <div key={item._id} className="card flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold">{item.name}</h3>
-              <p className="text-sm text-gray-500">Qty {item.quantity} · Rs {item.price}</p>
+    <main className="mx-auto max-w-6xl px-4 py-10">
+      <h1 className="mb-6 text-3xl font-extrabold text-slate-900">Cart & Checkout</h1>
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <section className="space-y-3">
+          {!items.length && <div className="card text-slate-600">Your cart is empty. Add items from menu to continue.</div>}
+          {items.map((item) => (
+            <div key={item._id} className="card flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">{item.name}</h3>
+                <p className="text-sm text-slate-500">Qty {item.quantity} · Rs {item.price}</p>
+              </div>
+              <button onClick={() => remove(item._id)} className="rounded-full border border-red-200 px-3 py-1 text-sm font-semibold text-red-600">
+                Remove
+              </button>
             </div>
-            <button onClick={() => remove(item._id)} className="text-sm text-red-600">
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6 card">
-        <label className="text-sm font-medium">Insurance Plan</label>
-        <select
-          value={selectedPlanId}
-          onChange={(e) => setSelectedPlanId(e.target.value)}
-          className="mt-2 w-full rounded-lg border px-3 py-2"
-        >
-          {plans.map((plan) => (
-            <option key={plan._id} value={plan._id}>
-              {plan.name} ({plan.currentInterestRate}%)
-            </option>
           ))}
-        </select>
+        </section>
 
-        <p className="mt-3 text-lg font-semibold">Total: Rs {total}</p>
-        <button onClick={checkout} className="mt-4 rounded-lg bg-brand-500 px-4 py-2 font-semibold text-white">
-          Checkout
-        </button>
+        <section className="card h-fit">
+          <h2 className="text-xl font-bold text-slate-900">Order Summary</h2>
+          <p className="mt-1 text-sm text-slate-600">{totalQty} items selected</p>
+
+          <label className="mt-4 block text-sm font-medium text-slate-700">Insurance Plan</label>
+          <select
+            value={selectedPlanId}
+            onChange={(e) => setSelectedPlanId(e.target.value)}
+            className="field mt-2"
+          >
+            {plans.map((plan) => (
+              <option key={plan._id} value={plan._id}>
+                {plan.name} ({plan.currentInterestRate}%)
+              </option>
+            ))}
+          </select>
+
+          <div className="mt-4 rounded-2xl bg-orange-50 p-4">
+            <p className="text-sm text-slate-600">Payable Total</p>
+            <p className="text-2xl font-extrabold text-orange-700">Rs {total}</p>
+          </div>
+
+          <button onClick={checkout} className="cta-btn mt-4 w-full">
+            Checkout
+          </button>
+        </section>
       </div>
 
       {result && (
-        <div className="mt-6 card bg-emerald-50">
-          <h2 className="font-bold">Interest Updated</h2>
-          <p className="text-sm">Adjustment: {result.adjustment}%</p>
-          <p className="text-sm">New Rate: {result.newRate}%</p>
-          <p className="text-xs text-gray-600">{result.reason}</p>
+        <div className="card mt-6 bg-emerald-50">
+          <h2 className="text-xl font-bold text-emerald-900">Interest Updated</h2>
+          <p className="mt-1 text-sm text-emerald-800">Adjustment: {result.adjustment}%</p>
+          <p className="text-sm text-emerald-800">New Rate: {result.newRate}%</p>
+          <p className="mt-1 text-xs text-emerald-700">{result.reason}</p>
         </div>
       )}
     </main>
