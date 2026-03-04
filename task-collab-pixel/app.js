@@ -987,7 +987,13 @@ function renderDependencyGraphSvg(graph) {
     .join("");
 
   return `
-    <svg class="node-canvas" viewBox="0 0 ${graph.width} ${graph.height}" role="img" aria-label="Dependency node graph">
+    <svg
+      class="node-canvas"
+      viewBox="0 0 ${graph.width} ${graph.height}"
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label="Dependency node graph"
+    >
       <rect class="node-graph-bg" x="0" y="0" width="${graph.width}" height="${graph.height}" rx="18"></rect>
       ${edgesMarkup}
       ${nodesMarkup}
@@ -996,11 +1002,6 @@ function renderDependencyGraphSvg(graph) {
 }
 
 function buildDependencyGraph() {
-  const width = 920;
-  const height = 460;
-  const centerX = width / 2;
-  const centerY = height / 2;
-
   const users = [...state.users].sort((a, b) => a.name.localeCompare(b.name));
   const externalUsage = new Map();
   state.tasks.forEach((task) => {
@@ -1019,8 +1020,17 @@ function buildDependencyGraph() {
     externalUsage.set(externalKey, current);
   });
 
+  const userOrbitCount = Math.max(1, users.length);
+  const externalOrbitCount = Math.max(1, externalUsage.size);
+  const ringSize = Math.max(userOrbitCount, externalOrbitCount);
+  const width = clampNumber(780 + ringSize * 28, 820, 1040);
+  const height = clampNumber(400 + ringSize * 20, 440, 620);
+  const centerX = width / 2;
+  const centerY = height / 2;
+
   const userCount = users.length || 1;
-  const userRadius = users.length > 6 ? 170 : 150;
+  const baseRadius = Math.min(width, height) * 0.28;
+  const userRadius = clampNumber(baseRadius, 130, 190);
   const userNodes = users.map((user, index) => {
     const angle = (-Math.PI / 2) + (index * (2 * Math.PI)) / userCount;
     const stats = getUserProjectStats(user.id);
@@ -1036,7 +1046,7 @@ function buildDependencyGraph() {
 
   const externalEntries = [...externalUsage.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label));
   const externalCount = externalEntries.length || 1;
-  const externalRadius = 215;
+  const externalRadius = externalEntries.length ? clampNumber(userRadius + 62, 186, 248) : userRadius;
   const externalNodes = externalEntries.map(([externalKey, details], index) => {
     const angle = (-Math.PI / 2) + ((index + 0.5) * (2 * Math.PI)) / externalCount;
     return {
@@ -1134,6 +1144,10 @@ function shortNodeLabel(value, maxLength) {
 
 function roundNumber(value) {
   return Math.round(value * 10) / 10;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function renderColumn(status, tasks, user) {

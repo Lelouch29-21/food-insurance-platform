@@ -861,12 +861,16 @@ textarea:focus {
   border: 2px solid #cad8f4;
   background: linear-gradient(180deg, #f8fbff, #f3f8ff);
   padding: 0.4rem;
+  display: flex;
+  justify-content: center;
 }
 
 .node-canvas {
-  width: 100%;
+  width: min(100%, 980px);
+  max-width: 980px;
   height: auto;
   display: block;
+  margin-inline: auto;
 }
 
 .node-graph-bg {
