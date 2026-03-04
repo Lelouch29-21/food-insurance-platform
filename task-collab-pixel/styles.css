@@ -512,6 +512,14 @@ textarea:focus {
   text-transform: uppercase;
 }
 
+.scope-pill {
+  border: 2px solid #d5dff5;
+  padding: 0.14rem 0.42rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .dependency-none {
   border-color: #ccd8f3;
   color: #4a5a84;
@@ -534,6 +542,24 @@ textarea:focus {
   border-color: #efb3bb;
   color: #8f2838;
   background: #fff3f5;
+}
+
+.scope-none {
+  border-color: #d5ddf4;
+  color: #4b5984;
+  background: #f3f6ff;
+}
+
+.scope-team {
+  border-color: #b8d2f5;
+  color: #1a5b9e;
+  background: #eef6ff;
+}
+
+.scope-external {
+  border-color: #efbcc7;
+  color: #93314a;
+  background: #fff3f7;
 }
 
 .priority-high {
@@ -805,6 +831,109 @@ textarea:focus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.node-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.node-user-card {
+  border: 2px solid #d4def5;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  padding: 0.6rem;
+  box-shadow: 2px 2px 0 0 #e0e9fb;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.node-metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.node-canvas-shell {
+  border: 2px solid #cad8f4;
+  background: linear-gradient(180deg, #f8fbff, #f3f8ff);
+  padding: 0.4rem;
+}
+
+.node-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.node-graph-bg {
+  fill: rgba(255, 255, 255, 0.88);
+  stroke: #c9d8f6;
+  stroke-width: 2;
+}
+
+.node-edge {
+  stroke-width: 2.8;
+}
+
+.node-edge-team {
+  stroke: #5d8fd2;
+}
+
+.node-edge-external {
+  stroke: #ca738a;
+  stroke-dasharray: 7 6;
+}
+
+.node-edge-count {
+  font-size: 11px;
+  fill: #304a7c;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.graph-node {
+  transform-origin: center;
+  transition: transform 150ms ease;
+}
+
+.graph-node:hover {
+  transform: scale(1.06);
+}
+
+.node-circle {
+  stroke-width: 2.5;
+}
+
+.node-circle.node-user {
+  fill: #eaf3ff;
+  stroke: #78a8e3;
+}
+
+.node-circle.node-external {
+  fill: #fff0f4;
+  stroke: #d98aa0;
+}
+
+.node-label {
+  font-size: 11px;
+  fill: #132143;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.node-sub-label {
+  font-size: 10px;
+  fill: #4f608b;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.node-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .animate-rise {
   animation: riseIn 320ms ease;
 }
@@ -891,6 +1020,14 @@ textarea:focus {
   }
 
   .split {
+    grid-template-columns: 1fr;
+  }
+
+  .split-even {
+    grid-template-columns: 1fr;
+  }
+
+  .node-summary-grid {
     grid-template-columns: 1fr;
   }
 }

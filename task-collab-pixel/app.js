@@ -22,10 +22,16 @@ const PRIORITY_META = {
 };
 
 const DEPENDENCY_META = {
-  none: { label: "No External", className: "dependency-none" },
+  none: { label: "None", className: "dependency-none" },
   low: { label: "Low", className: "dependency-low" },
   medium: { label: "Medium", className: "dependency-medium" },
   high: { label: "High", className: "dependency-high" },
+};
+
+const DEPENDENCY_SCOPE_META = {
+  none: { label: "None", className: "scope-none" },
+  team: { label: "Internal Team", className: "scope-team" },
+  external: { label: "External Team/Company", className: "scope-external" },
 };
 
 const BOARD_STATUSES = ["in_progress", "blocked", "done"];
@@ -118,7 +124,9 @@ function createSeedState() {
     createdBy: "u-manager",
     assignedTo: null,
     dependencyFactor: "medium",
+    dependencyScope: "team",
     dependentOn: "u-rina",
+    externalDependencyName: "",
     dependencyNotes: "Waiting for design-system icon set before final pass.",
     dueDate: dateOffset(3),
     internalEstimate: estimateFromDetails("medium", "onboarding checklist"),
@@ -145,7 +153,9 @@ function createSeedState() {
     createdBy: "u-manager",
     assignedTo: "u-alex",
     dependencyFactor: "high",
+    dependencyScope: "team",
     dependentOn: "u-manager",
+    externalDependencyName: "",
     dependencyNotes: "Needs manager approval on section hierarchy and legal wording.",
     dueDate: dateOffset(5),
     internalEstimate: estimateFromDetails("high", "visual system update"),
@@ -185,8 +195,10 @@ function createSeedState() {
     createdBy: "u-manager",
     assignedTo: "u-sam",
     dependencyFactor: "high",
-    dependentOn: "u-admin",
-    dependencyNotes: "Pending compliance response from admin/legal stream.",
+    dependencyScope: "external",
+    dependentOn: null,
+    externalDependencyName: "Global Compliance Partners",
+    dependencyNotes: "Pending compliance response from external legal partner.",
     dueDate: dateOffset(4),
     internalEstimate: estimateFromDetails("low", "faq compilation"),
     comments: [
@@ -218,7 +230,9 @@ function createSeedState() {
     createdBy: "u-manager",
     assignedTo: "u-rina",
     dependencyFactor: "low",
+    dependencyScope: "team",
     dependentOn: "u-manager",
+    externalDependencyName: "",
     dependencyNotes: "Manager sign-off required at closure.",
     dueDate: dateOffset(-1),
     internalEstimate: estimateFromDetails("medium", "retrospective notes"),
@@ -243,7 +257,7 @@ function createSeedState() {
   };
 
   return {
-    version: 3,
+    version: 4,
     users,
     tasks: [taskA, taskB, taskC, taskD],
     nudges: [
@@ -296,52 +310,74 @@ function sanitizeState(input) {
       password: String(user.password || ""),
       role: ["admin", "manager", "member"].includes(user.role) ? user.role : "member",
     }));
+  const userIdSet = new Set(users.map((user) => user.id));
 
   const tasks = input.tasks
     .filter((task) => task && typeof task.id === "string")
-    .map((task) => ({
-      id: String(task.id),
-      title: String(task.title || "Untitled Task"),
-      description: String(task.description || ""),
-      priority: PRIORITY_META[task.priority] ? task.priority : "medium",
-      status: STATUS_META[task.status] ? task.status : "bucket",
-      createdBy: task.createdBy ? String(task.createdBy) : "",
-      assignedTo: task.assignedTo ? String(task.assignedTo) : null,
-      dependencyFactor: normalizeDependencyFactor(task.dependencyFactor),
-      dependentOn: task.dependentOn ? String(task.dependentOn) : null,
-      dependencyNotes: String(task.dependencyNotes || ""),
-      dueDate: task.dueDate ? String(task.dueDate) : null,
-      internalEstimate:
-        task.internalEstimate && typeof task.internalEstimate === "object"
-          ? {
-              optimisticHours: Number(task.internalEstimate.optimisticHours || 1),
-              expectedHours: Number(task.internalEstimate.expectedHours || 1),
-              pessimisticHours: Number(task.internalEstimate.pessimisticHours || 1),
-            }
-          : estimateFromDetails(task.priority, task.description),
-      comments: Array.isArray(task.comments)
-        ? task.comments
-            .filter((comment) => comment && typeof comment.id === "string")
-            .map((comment) => ({
-              id: String(comment.id),
-              userId: String(comment.userId || ""),
-              body: String(comment.body || ""),
-              createdAt: String(comment.createdAt || new Date().toISOString()),
-            }))
-        : [],
-      history: Array.isArray(task.history)
-        ? task.history
-            .filter((entry) => entry && typeof entry.id === "string")
-            .map((entry) => ({
-              id: String(entry.id),
-              actorId: String(entry.actorId || ""),
-              message: String(entry.message || ""),
-              createdAt: String(entry.createdAt || new Date().toISOString()),
-            }))
-        : [],
-      createdAt: String(task.createdAt || new Date().toISOString()),
-      updatedAt: String(task.updatedAt || task.createdAt || new Date().toISOString()),
-    }));
+    .map((task) => {
+      const dependencyFactor = normalizeDependencyFactor(task.dependencyFactor);
+      let dependencyScope = normalizeDependencyScope(task.dependencyScope);
+      const dependentOn = task.dependentOn && userIdSet.has(String(task.dependentOn)) ? String(task.dependentOn) : null;
+      const externalDependencyName = normalizeExternalDependencyName(task.externalDependencyName || "");
+
+      if (dependencyFactor !== "none" && dependencyScope === "none") {
+        if (dependentOn) {
+          dependencyScope = "team";
+        } else if (externalDependencyName) {
+          dependencyScope = "external";
+        }
+      }
+
+      const resolvedDependentOn = dependencyFactor === "none" ? null : dependentOn;
+      const resolvedExternalDependencyName = dependencyFactor === "none" ? "" : externalDependencyName;
+      const resolvedDependencyScope = dependencyFactor === "none" ? "none" : dependencyScope;
+
+      return {
+        id: String(task.id),
+        title: String(task.title || "Untitled Task"),
+        description: String(task.description || ""),
+        priority: PRIORITY_META[task.priority] ? task.priority : "medium",
+        status: STATUS_META[task.status] ? task.status : "bucket",
+        createdBy: task.createdBy ? String(task.createdBy) : "",
+        assignedTo: task.assignedTo ? String(task.assignedTo) : null,
+        dependencyFactor,
+        dependencyScope: resolvedDependencyScope,
+        dependentOn: resolvedDependentOn,
+        externalDependencyName: resolvedExternalDependencyName,
+        dependencyNotes: String(task.dependencyNotes || ""),
+        dueDate: task.dueDate ? String(task.dueDate) : null,
+        internalEstimate:
+          task.internalEstimate && typeof task.internalEstimate === "object"
+            ? {
+                optimisticHours: Number(task.internalEstimate.optimisticHours || 1),
+                expectedHours: Number(task.internalEstimate.expectedHours || 1),
+                pessimisticHours: Number(task.internalEstimate.pessimisticHours || 1),
+              }
+            : estimateFromDetails(task.priority, task.description),
+        comments: Array.isArray(task.comments)
+          ? task.comments
+              .filter((comment) => comment && typeof comment.id === "string")
+              .map((comment) => ({
+                id: String(comment.id),
+                userId: String(comment.userId || ""),
+                body: String(comment.body || ""),
+                createdAt: String(comment.createdAt || new Date().toISOString()),
+              }))
+          : [],
+        history: Array.isArray(task.history)
+          ? task.history
+              .filter((entry) => entry && typeof entry.id === "string")
+              .map((entry) => ({
+                id: String(entry.id),
+                actorId: String(entry.actorId || ""),
+                message: String(entry.message || ""),
+                createdAt: String(entry.createdAt || new Date().toISOString()),
+              }))
+          : [],
+        createdAt: String(task.createdAt || new Date().toISOString()),
+        updatedAt: String(task.updatedAt || task.createdAt || new Date().toISOString()),
+      };
+    });
 
   const nudges = input.nudges
     .filter((nudge) => nudge && typeof nudge.id === "string")
@@ -356,7 +392,7 @@ function sanitizeState(input) {
     }));
 
   return {
-    version: Number(input.version || 3),
+    version: Number(input.version || 4),
     users,
     tasks,
     nudges,
@@ -595,6 +631,7 @@ function render() {
           ${canManage(user) ? renderManagerPanel() : ""}
           ${renderBucketSection(bucketTasks, user)}
           ${renderBoard(board, user)}
+          ${renderDependencyNodesSection()}
         </main>
 
         <aside class="side-column">
@@ -733,18 +770,35 @@ function renderManagerPanel() {
         <div class="field">
           <label for="taskDependencyFactor">Dependency Factor</label>
           <select id="taskDependencyFactor" name="dependencyFactor">
-            <option value="none" selected>No External</option>
+            <option value="none" selected>None</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
           </select>
         </div>
         <div class="field">
+          <label for="taskDependencyScope">Dependency Source</label>
+          <select id="taskDependencyScope" name="dependencyScope">
+            <option value="none" selected>No dependency owner</option>
+            <option value="team">Internal Team</option>
+            <option value="external">External Team / Company</option>
+          </select>
+        </div>
+        <div class="field">
           <label for="taskDependentOn">Dependent On</label>
           <select id="taskDependentOn" name="dependentOn">
-            <option value="">No specific owner</option>
+            <option value="">Select team member</option>
             ${dependencyOwnerOptions}
           </select>
+        </div>
+        <div class="field">
+          <label for="taskExternalDependency">External Team/Company</label>
+          <input
+            id="taskExternalDependency"
+            name="externalDependencyName"
+            maxlength="72"
+            placeholder="Acme Integration Partner"
+          />
         </div>
         <div class="field">
           <label for="taskLabel">Label (Optional)</label>
@@ -833,6 +887,223 @@ function renderBoard(board, user) {
   `;
 }
 
+function renderDependencyNodesSection() {
+  const graph = buildDependencyGraph();
+  const userStatsCards = state.users
+    .map((user) => {
+      const stats = getUserProjectStats(user.id);
+      return `
+        <article class="node-user-card">
+          <div class="row-top">
+            <strong>${escapeHtml(user.name)}</strong>
+            <span class="role-chip ${escapeHtml(user.role)}">${escapeHtml(user.role)}</span>
+          </div>
+          <div class="node-metric-row">
+            <span class="pill">Projects: ${stats.totalProjects}</span>
+            <span class="pill">Active: ${stats.activeProjects}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="panel pixel-panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Dependency Nodes</h2>
+          <p class="panel-subtitle">People are shown as nodes. Edges represent who depends on whom for delivery.</p>
+        </div>
+      </div>
+
+      <div class="node-summary-grid">
+        ${userStatsCards}
+      </div>
+
+      ${
+        graph.nodes.length
+          ? `<div class="node-canvas-shell">${renderDependencyGraphSvg(graph)}</div>`
+          : '<div class="empty-state">No dependency nodes available yet.</div>'
+      }
+
+      <div class="node-legend-row">
+        <span class="pill">Blue lines: Internal team dependency</span>
+        <span class="pill">Rose dashed: External team/company dependency</span>
+      </div>
+    </section>
+  `;
+}
+
+function renderDependencyGraphSvg(graph) {
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const edgesMarkup = graph.edges
+    .map((edge) => {
+      const from = nodeById.get(edge.source);
+      const to = nodeById.get(edge.target);
+      if (!from || !to) {
+        return "";
+      }
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2;
+      return `
+        <g>
+          <line
+            class="node-edge ${edge.scope === "external" ? "node-edge-external" : "node-edge-team"}"
+            x1="${from.x}"
+            y1="${from.y}"
+            x2="${to.x}"
+            y2="${to.y}"
+          />
+          <text class="node-edge-count" x="${midX}" y="${midY}">${edge.count}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const nodesMarkup = graph.nodes
+    .map((node) => {
+      const metric = node.kind === "user" ? `${node.totalProjects} projects` : `${node.totalProjects} deps`;
+      return `
+        <g class="graph-node" transform="translate(${node.x} ${node.y})">
+          <circle class="node-circle ${node.kind === "user" ? "node-user" : "node-external"}" r="34"></circle>
+          <text class="node-label" y="-3">${escapeHtml(shortNodeLabel(node.label, 16))}</text>
+          <text class="node-sub-label" y="14">${escapeHtml(metric)}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  return `
+    <svg class="node-canvas" viewBox="0 0 ${graph.width} ${graph.height}" role="img" aria-label="Dependency node graph">
+      <rect class="node-graph-bg" x="0" y="0" width="${graph.width}" height="${graph.height}" rx="18"></rect>
+      ${edgesMarkup}
+      ${nodesMarkup}
+    </svg>
+  `;
+}
+
+function buildDependencyGraph() {
+  const width = 920;
+  const height = 460;
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  const users = [...state.users].sort((a, b) => a.name.localeCompare(b.name));
+  const externalUsage = new Map();
+  state.tasks.forEach((task) => {
+    const factor = normalizeDependencyFactor(task.dependencyFactor);
+    const scope = normalizeDependencyScope(task.dependencyScope);
+    if (factor === "none" || scope !== "external") {
+      return;
+    }
+    const externalName = normalizeExternalDependencyName(task.externalDependencyName);
+    if (!externalName) {
+      return;
+    }
+    const externalKey = externalName.toLowerCase();
+    const current = externalUsage.get(externalKey) || { label: externalName, count: 0 };
+    current.count += 1;
+    externalUsage.set(externalKey, current);
+  });
+
+  const userCount = users.length || 1;
+  const userRadius = users.length > 6 ? 170 : 150;
+  const userNodes = users.map((user, index) => {
+    const angle = (-Math.PI / 2) + (index * (2 * Math.PI)) / userCount;
+    const stats = getUserProjectStats(user.id);
+    return {
+      id: user.id,
+      label: user.name,
+      kind: "user",
+      totalProjects: stats.totalProjects,
+      x: roundNumber(centerX + userRadius * Math.cos(angle)),
+      y: roundNumber(centerY + userRadius * Math.sin(angle)),
+    };
+  });
+
+  const externalEntries = [...externalUsage.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label));
+  const externalCount = externalEntries.length || 1;
+  const externalRadius = 215;
+  const externalNodes = externalEntries.map(([externalKey, details], index) => {
+    const angle = (-Math.PI / 2) + ((index + 0.5) * (2 * Math.PI)) / externalCount;
+    return {
+      id: `ext:${externalKey}`,
+      label: details.label,
+      kind: "external",
+      totalProjects: details.count,
+      x: roundNumber(centerX + externalRadius * Math.cos(angle)),
+      y: roundNumber(centerY + externalRadius * Math.sin(angle)),
+    };
+  });
+
+  const nodes = [...userNodes, ...externalNodes];
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const edgeMap = new Map();
+
+  state.tasks.forEach((task) => {
+    const factor = normalizeDependencyFactor(task.dependencyFactor);
+    const scope = normalizeDependencyScope(task.dependencyScope);
+    if (factor === "none" || scope === "none") {
+      return;
+    }
+
+    const source = task.assignedTo || task.createdBy;
+    if (!source || !nodeById.has(source)) {
+      return;
+    }
+
+    let target = null;
+    if (scope === "team") {
+      target = task.dependentOn && nodeById.has(task.dependentOn) ? task.dependentOn : null;
+    } else if (scope === "external") {
+      const externalName = normalizeExternalDependencyName(task.externalDependencyName);
+      target = externalName ? `ext:${externalName.toLowerCase()}` : null;
+    }
+
+    if (!target || !nodeById.has(target) || source === target) {
+      return;
+    }
+
+    const edgeKey = `${source}|${target}|${scope}`;
+    const current = edgeMap.get(edgeKey) || { source, target, scope, count: 0 };
+    current.count += 1;
+    edgeMap.set(edgeKey, current);
+  });
+
+  return {
+    width,
+    height,
+    nodes,
+    edges: [...edgeMap.values()],
+  };
+}
+
+function getUserProjectStats(userId) {
+  const involvedTasks = state.tasks.filter((task) => {
+    if (task.assignedTo === userId || task.createdBy === userId) {
+      return true;
+    }
+    return normalizeDependencyScope(task.dependencyScope) === "team" && task.dependentOn === userId;
+  });
+
+  return {
+    totalProjects: involvedTasks.length,
+    activeProjects: involvedTasks.filter((task) => task.status !== "done").length,
+  };
+}
+
+function shortNodeLabel(value, maxLength) {
+  const text = String(value || "").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(1, maxLength - 3))}...`;
+}
+
+function roundNumber(value) {
+  return Math.round(value * 10) / 10;
+}
+
 function renderColumn(status, tasks, user) {
   return `
     <div class="column">
@@ -855,7 +1126,8 @@ function renderTaskCard(task, user, section) {
   const priorityMeta = PRIORITY_META[task.priority] || PRIORITY_META.medium;
   const statusMeta = STATUS_META[task.status] || STATUS_META.bucket;
   const dependencyMeta = DEPENDENCY_META[normalizeDependencyFactor(task.dependencyFactor)] || DEPENDENCY_META.none;
-  const dependencyOwner = task.dependentOn ? displayUserName(task.dependentOn) : "No owner";
+  const dependencyScopeMeta =
+    DEPENDENCY_SCOPE_META[normalizeDependencyScope(task.dependencyScope)] || DEPENDENCY_SCOPE_META.none;
 
   return `
     <article class="task-card">
@@ -865,6 +1137,7 @@ function renderTaskCard(task, user, section) {
           <span class="priority-pill ${priorityMeta.className}">${priorityMeta.label}</span>
           <span class="status-pill ${statusMeta.className}">${statusMeta.label}</span>
           <span class="dependency-pill ${dependencyMeta.className}">Dependency: ${dependencyMeta.label}</span>
+          <span class="scope-pill ${dependencyScopeMeta.className}">${dependencyScopeMeta.label}</span>
         </div>
       </div>
 
@@ -872,7 +1145,7 @@ function renderTaskCard(task, user, section) {
 
       <div class="meta-row text-muted">
         <span>Assignee: ${escapeHtml(assignee)}</span>
-        <span>Depends On: ${escapeHtml(dependencyOwner)}</span>
+        <span>${escapeHtml(describeDependency(task))}</span>
         <span>Due: ${escapeHtml(formatDate(task.dueDate))}</span>
         <span>By: ${escapeHtml(creator)}</span>
       </div>
@@ -1118,7 +1391,9 @@ function renderTaskModal(user) {
   const comments = [...task.comments].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const canAssign = canManage(user);
   const dependencyMeta = DEPENDENCY_META[normalizeDependencyFactor(task.dependencyFactor)] || DEPENDENCY_META.none;
-  const dependencyOwner = task.dependentOn ? displayUserName(task.dependentOn) : "No owner";
+  const dependencyScopeMeta =
+    DEPENDENCY_SCOPE_META[normalizeDependencyScope(task.dependencyScope)] || DEPENDENCY_SCOPE_META.none;
+  const dependencyLabel = describeDependency(task);
   const assigneeOptions = state.users
     .map(
       (candidate) =>
@@ -1154,8 +1429,9 @@ function renderTaskModal(user) {
     (PRIORITY_META[task.priority] || PRIORITY_META.medium).label
   }</span>
           <span class="dependency-pill ${dependencyMeta.className}">Dependency: ${dependencyMeta.label}</span>
+          <span class="scope-pill ${dependencyScopeMeta.className}">${dependencyScopeMeta.label}</span>
           <span class="pill">Assignee: ${escapeHtml(displayUserName(task.assignedTo))}</span>
-          <span class="pill">Depends On: ${escapeHtml(dependencyOwner)}</span>
+          <span class="pill">${escapeHtml(dependencyLabel)}</span>
           <span class="pill">Due: ${escapeHtml(formatDate(task.dueDate))}</span>
         </div>
         ${
@@ -1175,27 +1451,40 @@ function renderTaskModal(user) {
                   ${assigneeOptions}
                 </select>
                 <select name="dependencyFactor">
-                  <option value="none" ${normalizeDependencyFactor(task.dependencyFactor) === "none" ? "selected" : ""}>No External</option>
+                  <option value="none" ${normalizeDependencyFactor(task.dependencyFactor) === "none" ? "selected" : ""}>None</option>
                   <option value="low" ${normalizeDependencyFactor(task.dependencyFactor) === "low" ? "selected" : ""}>Low</option>
                   <option value="medium" ${normalizeDependencyFactor(task.dependencyFactor) === "medium" ? "selected" : ""}>Medium</option>
                   <option value="high" ${normalizeDependencyFactor(task.dependencyFactor) === "high" ? "selected" : ""}>High</option>
                 </select>
               </div>
               <div class="split split-even">
+                <select name="dependencyScope">
+                  <option value="none" ${normalizeDependencyScope(task.dependencyScope) === "none" ? "selected" : ""}>No dependency owner</option>
+                  <option value="team" ${normalizeDependencyScope(task.dependencyScope) === "team" ? "selected" : ""}>Internal Team</option>
+                  <option value="external" ${normalizeDependencyScope(task.dependencyScope) === "external" ? "selected" : ""}>External Team / Company</option>
+                </select>
                 <select name="dependentOn">
-                  <option value="">No specific owner</option>
+                  <option value="">Select team member</option>
                   ${dependencyOwnerOptions}
                 </select>
+              </div>
+              <div class="split split-even">
+                <input
+                  name="externalDependencyName"
+                  maxlength="72"
+                  value="${escapeHtml(task.externalDependencyName || "")}"
+                  placeholder="External team/company"
+                />
                 <input name="dependencyNotes" maxlength="140" value="${escapeHtml(task.dependencyNotes || "")}" placeholder="Dependency note (optional)" />
               </div>
               <div class="inline-actions">
                 <button class="btn" type="submit">Apply Task Controls</button>
               </div>
-              <p class="text-muted">Managers/Admins can update assignee and dependency ownership from here.</p>
+              <p class="text-muted">Managers/Admins can set dependency type as internal team or external organization.</p>
             </form>
           `
             : `
-            <div class="text-muted">Dependency Owner: ${escapeHtml(dependencyOwner)}</div>
+            <div class="text-muted">${escapeHtml(dependencyLabel)}</div>
             ${
               task.dependencyNotes
                 ? `<div class="text-muted">Dependency Note: ${escapeHtml(task.dependencyNotes)}</div>`
@@ -1443,14 +1732,23 @@ function handleSubmit(event) {
     const description = String(formData.get("description") || "").trim();
     const priority = String(formData.get("priority") || "medium");
     const dueDate = String(formData.get("dueDate") || "").trim();
-    const dependencyFactor = normalizeDependencyFactor(String(formData.get("dependencyFactor") || "none"));
-    const dependencyOwnerInput = String(formData.get("dependentOn") || "").trim() || null;
-    const dependentOn = dependencyFactor === "none" ? null : normalizeDependencyOwner(dependencyOwnerInput);
-    const dependencyNotes = String(formData.get("dependencyNotes") || "").trim();
+    const dependencyInput = buildDependencyData({
+      factorInput: String(formData.get("dependencyFactor") || "none"),
+      scopeInput: String(formData.get("dependencyScope") || "none"),
+      dependentOnInput: String(formData.get("dependentOn") || "").trim() || null,
+      externalDependencyNameInput: String(formData.get("externalDependencyName") || ""),
+      notesInput: String(formData.get("dependencyNotes") || ""),
+    });
     const label = String(formData.get("label") || "").trim();
 
     if (!title || !description) {
       setFlash("Title and description are required.", "error");
+      render();
+      return;
+    }
+
+    if (!dependencyInput.ok) {
+      setFlash(dependencyInput.error, "error");
       render();
       return;
     }
@@ -1465,9 +1763,7 @@ function handleSubmit(event) {
       status: "bucket",
       createdBy: user.id,
       assignedTo: null,
-      dependencyFactor,
-      dependentOn,
-      dependencyNotes,
+      ...dependencyInput.value,
       dueDate: dueDate || null,
       internalEstimate: estimateFromDetails(priority, description),
       comments: [],
@@ -1476,10 +1772,7 @@ function handleSubmit(event) {
       updatedAt: now,
     };
 
-    const dependencyContext =
-      dependencyFactor === "none"
-        ? "No external dependency."
-        : `Dependency ${DEPENDENCY_META[dependencyFactor].label}${dependentOn ? ` on ${displayUserName(dependentOn)}` : ""}.`;
+    const dependencyContext = describeDependency(task);
     addHistory(task, user.id, `${user.name} created the task in the pending bucket. ${dependencyContext}`);
     state.tasks.push(task);
     saveState();
@@ -1562,32 +1855,47 @@ function handleSubmit(event) {
     const formData = new FormData(form);
     const taskId = String(formData.get("taskId") || "");
     const assigneeId = String(formData.get("assigneeId") || "").trim();
-    const dependencyFactor = normalizeDependencyFactor(String(formData.get("dependencyFactor") || "none"));
-    const dependencyOwnerInput = String(formData.get("dependentOn") || "").trim() || null;
-    const dependentOn = dependencyFactor === "none" ? null : normalizeDependencyOwner(dependencyOwnerInput);
-    const dependencyNotes = String(formData.get("dependencyNotes") || "").trim();
+    const dependencyInput = buildDependencyData({
+      factorInput: String(formData.get("dependencyFactor") || "none"),
+      scopeInput: String(formData.get("dependencyScope") || "none"),
+      dependentOnInput: String(formData.get("dependentOn") || "").trim() || null,
+      externalDependencyNameInput: String(formData.get("externalDependencyName") || ""),
+      notesInput: String(formData.get("dependencyNotes") || ""),
+    });
     const task = state.tasks.find((item) => item.id === taskId);
 
     if (!task) {
       return;
     }
 
+    if (!dependencyInput.ok) {
+      setFlash(dependencyInput.error, "error");
+      render();
+      return;
+    }
+
     const previousAssignee = task.assignedTo || null;
     const previousDependencyFactor = normalizeDependencyFactor(task.dependencyFactor);
+    const previousDependencyScope = normalizeDependencyScope(task.dependencyScope);
     const previousDependentOn = task.dependentOn || null;
+    const previousExternalDependencyName = String(task.externalDependencyName || "");
     const previousDependencyNotes = String(task.dependencyNotes || "");
 
     task.assignedTo = assigneeId || null;
     task.status = task.assignedTo ? (task.status === "done" ? "done" : "in_progress") : "bucket";
-    task.dependencyFactor = dependencyFactor;
-    task.dependentOn = dependentOn;
-    task.dependencyNotes = dependencyNotes;
+    task.dependencyFactor = dependencyInput.value.dependencyFactor;
+    task.dependencyScope = dependencyInput.value.dependencyScope;
+    task.dependentOn = dependencyInput.value.dependentOn;
+    task.externalDependencyName = dependencyInput.value.externalDependencyName;
+    task.dependencyNotes = dependencyInput.value.dependencyNotes;
     task.updatedAt = new Date().toISOString();
 
     const assigneeChanged = previousAssignee !== task.assignedTo;
     const dependencyChanged =
       previousDependencyFactor !== task.dependencyFactor ||
+      previousDependencyScope !== task.dependencyScope ||
       previousDependentOn !== task.dependentOn ||
+      previousExternalDependencyName !== task.externalDependencyName ||
       previousDependencyNotes !== task.dependencyNotes;
 
     if (assigneeChanged && task.assignedTo) {
@@ -1597,12 +1905,7 @@ function handleSubmit(event) {
     }
 
     if (dependencyChanged) {
-      const ownerText = task.dependentOn ? ` on ${displayUserName(task.dependentOn)}` : "";
-      addHistory(
-        task,
-        user.id,
-        `${user.name} updated dependency to ${DEPENDENCY_META[task.dependencyFactor].label}${ownerText}.`
-      );
+      addHistory(task, user.id, `${user.name} updated dependency controls. ${describeDependency(task)}.`);
     }
 
     if (assigneeChanged || dependencyChanged) {
@@ -1713,11 +2016,83 @@ function normalizeDependencyFactor(value) {
   return DEPENDENCY_META[value] ? value : "none";
 }
 
+function normalizeDependencyScope(value) {
+  return DEPENDENCY_SCOPE_META[value] ? value : "none";
+}
+
 function normalizeDependencyOwner(userId) {
   if (!userId) {
     return null;
   }
   return state.users.some((member) => member.id === userId) ? userId : null;
+}
+
+function normalizeExternalDependencyName(value) {
+  const text = String(value || "").trim();
+  return text.slice(0, 72);
+}
+
+function buildDependencyData({ factorInput, scopeInput, dependentOnInput, externalDependencyNameInput, notesInput }) {
+  const dependencyFactor = normalizeDependencyFactor(factorInput);
+  let dependencyScope = normalizeDependencyScope(scopeInput);
+  let dependentOn = normalizeDependencyOwner(dependentOnInput);
+  let externalDependencyName = normalizeExternalDependencyName(externalDependencyNameInput);
+  const dependencyNotes = String(notesInput || "").trim();
+
+  if (dependencyFactor === "none") {
+    return {
+      ok: true,
+      value: {
+        dependencyFactor: "none",
+        dependencyScope: "none",
+        dependentOn: null,
+        externalDependencyName: "",
+        dependencyNotes,
+      },
+    };
+  }
+
+  if (dependencyScope === "none") {
+    dependencyScope = dependentOn ? "team" : externalDependencyName ? "external" : "team";
+  }
+
+  if (dependencyScope === "team") {
+    if (!dependentOn) {
+      return { ok: false, error: "Choose a team member for internal dependency." };
+    }
+    externalDependencyName = "";
+  } else if (dependencyScope === "external") {
+    dependentOn = null;
+    if (!externalDependencyName) {
+      return { ok: false, error: "Enter external team/company for external dependency." };
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      dependencyFactor,
+      dependencyScope,
+      dependentOn,
+      externalDependencyName,
+      dependencyNotes,
+    },
+  };
+}
+
+function describeDependency(task) {
+  const dependencyFactor = normalizeDependencyFactor(task.dependencyFactor);
+  const dependencyScope = normalizeDependencyScope(task.dependencyScope);
+  if (dependencyFactor === "none" || dependencyScope === "none") {
+    return "No active dependency";
+  }
+  if (dependencyScope === "team") {
+    return `Internal: ${displayUserName(task.dependentOn)}`;
+  }
+  if (dependencyScope === "external") {
+    return `External: ${task.externalDependencyName || "External team/company"}`;
+  }
+  return "No active dependency";
 }
 
 function canManage(user) {

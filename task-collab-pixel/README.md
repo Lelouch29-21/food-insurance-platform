@@ -10,7 +10,8 @@ A light-mode collaborative task management web app with pixel-inspired UI.
 - Manager/admin task creation into bucket
 - Collaboration threads (comments) per task
 - Manager/admin nudges to specific assignees
-- Dependency factor tracking and dependency owner per task
+- Dependency factor tracking with internal-team or external-team/company ownership
+- Dependency node map showing people/partners and per-user project participation counts
 - Admin-only user/role management
 - Internal multi-point task estimate saved in state and hidden from UI
 - Responsive layout and animated interface
