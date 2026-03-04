@@ -1,6 +1,10 @@
+import { cloudSyncEnabled, firebaseConfig } from "./firebase-config.js";
+
 const STORAGE_KEY = "pixelTaskNexus::state";
 const SESSION_KEY = "pixelTaskNexus::session";
 const FLASH_TIMEOUT_MS = 2800;
+const CLOUD_COLLECTION = "pixel_task_nexus";
+const CLOUD_DOCUMENT = "workspace_main";
 
 const appRoot = document.getElementById("app");
 
@@ -23,6 +27,17 @@ const uiState = {
   selectedTaskId: null,
   loginError: "",
   flash: null,
+  syncStatus: "local",
+  syncMessage: "Local mode active. Configure Firebase to enable cross-device realtime sync.",
+};
+
+const cloudState = {
+  enabled: false,
+  ready: false,
+  docRef: null,
+  setDocFn: null,
+  unsubscribe: null,
+  writeQueue: Promise.resolve(),
 };
 
 let flashTimerId = null;
@@ -36,8 +51,14 @@ window.addEventListener("keydown", (event) => {
     render();
   }
 });
+window.addEventListener("beforeunload", () => {
+  if (cloudState.unsubscribe) {
+    cloudState.unsubscribe();
+  }
+});
 
 render();
+void initCloudSync();
 
 function createSeedState() {
   const now = new Date();
@@ -203,7 +224,7 @@ function createSeedState() {
   };
 
   return {
-    version: 1,
+    version: 2,
     users,
     tasks: [taskA, taskB, taskC, taskD],
     nudges: [
@@ -224,25 +245,255 @@ function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
     const seed = createSeedState();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+    persistLocalState(seed);
     return seed;
   }
 
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.users) || !Array.isArray(parsed.tasks) || !Array.isArray(parsed.nudges)) {
+    const normalized = sanitizeState(parsed);
+    if (!normalized) {
       throw new Error("Invalid state");
     }
-    return parsed;
+    return normalized;
   } catch {
     const seed = createSeedState();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+    persistLocalState(seed);
     return seed;
   }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function sanitizeState(input) {
+  if (!input || !Array.isArray(input.users) || !Array.isArray(input.tasks) || !Array.isArray(input.nudges)) {
+    return null;
+  }
+
+  const users = input.users
+    .filter((user) => user && typeof user.id === "string" && typeof user.username === "string")
+    .map((user) => ({
+      id: String(user.id),
+      name: String(user.name || "Unknown User"),
+      username: String(user.username || ""),
+      password: String(user.password || ""),
+      role: ["admin", "manager", "member"].includes(user.role) ? user.role : "member",
+    }));
+
+  const tasks = input.tasks
+    .filter((task) => task && typeof task.id === "string")
+    .map((task) => ({
+      id: String(task.id),
+      title: String(task.title || "Untitled Task"),
+      description: String(task.description || ""),
+      priority: PRIORITY_META[task.priority] ? task.priority : "medium",
+      status: STATUS_META[task.status] ? task.status : "bucket",
+      createdBy: task.createdBy ? String(task.createdBy) : "",
+      assignedTo: task.assignedTo ? String(task.assignedTo) : null,
+      dueDate: task.dueDate ? String(task.dueDate) : null,
+      internalEstimate:
+        task.internalEstimate && typeof task.internalEstimate === "object"
+          ? {
+              optimisticHours: Number(task.internalEstimate.optimisticHours || 1),
+              expectedHours: Number(task.internalEstimate.expectedHours || 1),
+              pessimisticHours: Number(task.internalEstimate.pessimisticHours || 1),
+            }
+          : estimateFromDetails(task.priority, task.description),
+      comments: Array.isArray(task.comments)
+        ? task.comments
+            .filter((comment) => comment && typeof comment.id === "string")
+            .map((comment) => ({
+              id: String(comment.id),
+              userId: String(comment.userId || ""),
+              body: String(comment.body || ""),
+              createdAt: String(comment.createdAt || new Date().toISOString()),
+            }))
+        : [],
+      history: Array.isArray(task.history)
+        ? task.history
+            .filter((entry) => entry && typeof entry.id === "string")
+            .map((entry) => ({
+              id: String(entry.id),
+              actorId: String(entry.actorId || ""),
+              message: String(entry.message || ""),
+              createdAt: String(entry.createdAt || new Date().toISOString()),
+            }))
+        : [],
+      createdAt: String(task.createdAt || new Date().toISOString()),
+      updatedAt: String(task.updatedAt || task.createdAt || new Date().toISOString()),
+    }));
+
+  const nudges = input.nudges
+    .filter((nudge) => nudge && typeof nudge.id === "string")
+    .map((nudge) => ({
+      id: String(nudge.id),
+      taskId: String(nudge.taskId || ""),
+      fromUserId: String(nudge.fromUserId || ""),
+      toUserId: String(nudge.toUserId || ""),
+      message: String(nudge.message || ""),
+      createdAt: String(nudge.createdAt || new Date().toISOString()),
+      readAt: nudge.readAt ? String(nudge.readAt) : null,
+    }));
+
+  return {
+    version: Number(input.version || 2),
+    users,
+    tasks,
+    nudges,
+  };
+}
+
+function cloneState(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function persistLocalState(nextState) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+}
+
+function saveState(options = {}) {
+  persistLocalState(state);
+  if (options.localOnly) {
+    return;
+  }
+  queueCloudWrite(state);
+}
+
+function queueCloudWrite(nextState) {
+  if (!cloudState.enabled || !cloudState.ready || !cloudState.docRef || !cloudState.setDocFn) {
+    return;
+  }
+
+  const payload = {
+    ...cloneState(nextState),
+    updatedAt: new Date().toISOString(),
+  };
+
+  cloudState.writeQueue = cloudState.writeQueue
+    .then(() => cloudState.setDocFn(cloudState.docRef, payload))
+    .catch((error) => {
+      console.error("Cloud write failed", error);
+      uiState.syncStatus = "error";
+      uiState.syncMessage = "Cloud write failed. App remains usable with local cache.";
+      render();
+    });
+}
+
+async function initCloudSync() {
+  if (!cloudSyncEnabled) {
+    uiState.syncStatus = "local";
+    uiState.syncMessage = "Cloud mode disabled in firebase-config.js. Running in local mode.";
+    render();
+    return;
+  }
+
+  if (!isFirebaseConfigured(firebaseConfig)) {
+    uiState.syncStatus = "local";
+    uiState.syncMessage = "Firebase config is incomplete. Fill firebase-config.js to enable realtime sync.";
+    render();
+    return;
+  }
+
+  uiState.syncStatus = "connecting";
+  uiState.syncMessage = "Connecting to cloud workspace...";
+  render();
+
+  try {
+    const [{ initializeApp }, firestoreModule] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js"),
+    ]);
+
+    const { doc, getDoc, getFirestore, onSnapshot, setDoc } = firestoreModule;
+    const firebaseApp = initializeApp(firebaseConfig);
+    const firestore = getFirestore(firebaseApp);
+
+    cloudState.enabled = true;
+    cloudState.docRef = doc(firestore, CLOUD_COLLECTION, CLOUD_DOCUMENT);
+    cloudState.setDocFn = setDoc;
+
+    const existing = await getDoc(cloudState.docRef);
+    if (!existing.exists()) {
+      await setDoc(cloudState.docRef, {
+        ...cloneState(state),
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      const remote = sanitizeState(existing.data());
+      if (remote) {
+        state = remote;
+        ensureSessionStillValid();
+        saveState({ localOnly: true });
+      }
+    }
+
+    cloudState.unsubscribe = onSnapshot(
+      cloudState.docRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          return;
+        }
+
+        const incoming = sanitizeState(snapshot.data());
+        if (!incoming) {
+          return;
+        }
+
+        state = incoming;
+        ensureSessionStillValid();
+        saveState({ localOnly: true });
+
+        cloudState.ready = true;
+        uiState.syncStatus = "online";
+        uiState.syncMessage = "Realtime sync active across devices.";
+        render();
+      },
+      (error) => {
+        console.error("Cloud listener error", error);
+        cloudState.ready = false;
+        uiState.syncStatus = "error";
+        uiState.syncMessage = "Cloud sync listener disconnected. Local mode remains available.";
+        render();
+      }
+    );
+
+    cloudState.ready = true;
+    uiState.syncStatus = "online";
+    uiState.syncMessage = "Realtime sync active across devices.";
+    setFlash("Cloud sync connected.", "success");
+    render();
+  } catch (error) {
+    console.error("Cloud sync initialization failed", error);
+    cloudState.enabled = false;
+    cloudState.ready = false;
+    uiState.syncStatus = "error";
+    uiState.syncMessage = "Cloud sync setup failed. Running with local data only.";
+    setFlash("Cloud connection failed. Switched to local mode.", "error");
+    render();
+  }
+}
+
+function isFirebaseConfigured(config) {
+  if (!config || typeof config !== "object") {
+    return false;
+  }
+
+  const required = ["apiKey", "authDomain", "projectId", "appId"];
+  return required.every((key) => typeof config[key] === "string" && config[key].trim().length > 0);
+}
+
+function ensureSessionStillValid() {
+  const sessionId = localStorage.getItem(SESSION_KEY);
+  if (!sessionId) {
+    return;
+  }
+
+  const exists = state.users.some((candidate) => candidate.id === sessionId);
+  if (exists) {
+    return;
+  }
+
+  setCurrentUser("");
+  uiState.selectedTaskId = null;
+  uiState.loginError = "Your account no longer exists in this workspace.";
 }
 
 function getCurrentUser() {
@@ -288,13 +539,15 @@ function render() {
           <p class="header-subtitle">Shared task board with manager nudges, collaboration threads, and admin controls.</p>
         </div>
         <div class="header-right">
+          ${renderSyncBadge()}
           <span class="role-chip ${escapeHtml(user.role)}">${escapeHtml(user.name)} · ${escapeHtml(user.role)}</span>
-          <button class="btn small" data-action="reset-data" type="button">Reset Demo Data</button>
+          ${uiState.syncStatus === "online" ? "" : '<button class="btn small" data-action="reset-data" type="button">Reset Demo Data</button>'}
           <button class="btn small" data-action="logout" type="button">Logout</button>
         </div>
       </header>
 
       ${renderFlash()}
+      ${renderSyncBanner()}
 
       <section class="stats-grid">
         <article class="stat-card pixel-panel">
@@ -341,6 +594,29 @@ function renderFlash() {
   return `<div class="flash ${escapeHtml(uiState.flash.type)}">${escapeHtml(uiState.flash.message)}</div>`;
 }
 
+function renderSyncBadge() {
+  let label = "Local";
+  if (uiState.syncStatus === "online") {
+    label = "Cloud Live";
+  } else if (uiState.syncStatus === "connecting") {
+    label = "Connecting";
+  } else if (uiState.syncStatus === "error") {
+    label = "Sync Error";
+  }
+
+  return `<span class="pill sync-pill ${escapeHtml(uiState.syncStatus)}">${escapeHtml(label)}</span>`;
+}
+
+function renderSyncBanner() {
+  if (uiState.syncStatus === "online") {
+    return "";
+  }
+
+  return `<div class="sync-banner ${uiState.syncStatus === "error" ? "error" : ""}">${escapeHtml(
+    uiState.syncMessage
+  )}</div>`;
+}
+
 function renderLogin() {
   const demoUsers = state.users.filter((user) => ["admin", "manager", "member"].includes(user.role));
 
@@ -353,6 +629,7 @@ function renderLogin() {
             Professional, light-mode task collaboration with shared visibility, pending task bucket pickup,
             manager nudges, and admin-level controls.
           </p>
+          ${renderSyncBanner()}
           <div class="credential-grid">
             ${demoUsers
               .map(
@@ -903,6 +1180,12 @@ function handleClick(event) {
   }
 
   if (action === "reset-data") {
+    if (uiState.syncStatus === "online") {
+      setFlash("Reset is disabled in cloud mode to avoid wiping shared workspace.", "error");
+      render();
+      return;
+    }
+
     if (!window.confirm("Reset all local demo data for this app?")) {
       return;
     }

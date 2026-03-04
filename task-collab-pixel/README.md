@@ -13,6 +13,7 @@ A light-mode collaborative task management web app with pixel-inspired UI.
 - Admin-only user/role management
 - Internal multi-point task estimate saved in state and hidden from UI
 - Responsive layout and animated interface
+- Optional cross-device realtime sync through Firebase Firestore
 
 ## Demo Accounts
 
@@ -22,7 +23,29 @@ A light-mode collaborative task management web app with pixel-inspired UI.
 - `sam` / `sam123`
 - `rina` / `rina123`
 
-## Local Run
+## Local Mode
 
-Open `index.html` in a browser or serve the folder with any static server.
+With default config, the app runs in local mode using browser storage.
+
+## Enable Cloud Realtime Sync
+
+1. Create a Firebase project and enable Firestore.
+2. Copy `firebase-config.example.js` to `firebase-config.js`.
+3. Set `cloudSyncEnabled = true` and fill `firebaseConfig` fields.
+4. Deploy or reload the app. It will sync task data across devices in realtime.
+
+### Recommended Firestore Rules (demo)
+
+Use stricter production rules for real apps. For quick testing, you can temporarily allow reads/writes:
+
+```txt
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /pixel_task_nexus/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
+```
 

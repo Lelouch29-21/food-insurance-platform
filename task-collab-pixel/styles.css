@@ -165,6 +165,34 @@ p {
   letter-spacing: 0.03em;
 }
 
+.sync-pill {
+  border-style: dashed;
+}
+
+.sync-pill.online {
+  border-color: #9adcb4;
+  background: #e9fbf0;
+  color: #197042;
+}
+
+.sync-pill.local {
+  border-color: #cfd9f5;
+  background: #f8faff;
+  color: #475684;
+}
+
+.sync-pill.connecting {
+  border-color: #b2d5f7;
+  background: #eef7ff;
+  color: #175ea6;
+}
+
+.sync-pill.error {
+  border-color: #f0b4b4;
+  background: #fff2f2;
+  color: #902d2d;
+}
+
 .role-chip.admin {
   border-color: #afcdf8;
   background: #e9f3ff;
@@ -565,6 +593,20 @@ textarea:focus {
   border-color: #b8e4c9;
   background: #effcf4;
   color: #175f39;
+}
+
+.sync-banner {
+  border: 2px dashed #bccff0;
+  background: #f2f8ff;
+  color: #1f4f88;
+  padding: 0.5rem 0.8rem;
+  font-weight: 700;
+}
+
+.sync-banner.error {
+  border-color: #edbbbb;
+  background: #fff3f3;
+  color: #8d2626;
 }
 
 .modal-backdrop {
