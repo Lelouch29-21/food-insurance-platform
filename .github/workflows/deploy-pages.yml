@@ -52,9 +52,10 @@ jobs:
 
       - name: Assemble Pages artifact
         run: |
-          mkdir -p _site/food-app-frontend _site/insurance-app-frontend
+          mkdir -p _site/food-app-frontend _site/insurance-app-frontend _site/task-collab-pixel
           cp -R food-app-frontend/dist/* _site/food-app-frontend/
           cp -R insurance-app-frontend/dist/* _site/insurance-app-frontend/
+          cp -R task-collab-pixel/* _site/task-collab-pixel/
           cp food-app-frontend/dist/index.html _site/food-app-frontend/404.html
           cp insurance-app-frontend/dist/index.html _site/insurance-app-frontend/404.html
           cat > _site/index.html << 'HTML'
@@ -117,6 +118,7 @@ jobs:
                 }
                 .food { background: #ffedd5; color: #c2410c; }
                 .ins { background: #dbeafe; color: #1d4ed8; }
+                .task { background: #dcfce7; color: #166534; }
                 .btn {
                   display: inline-block;
                   margin-top: 14px;
@@ -128,6 +130,7 @@ jobs:
                 }
                 .btn-food { background: linear-gradient(90deg, #f97316, #ef4444); }
                 .btn-ins { background: linear-gradient(90deg, #2563eb, #4f46e5); }
+                .btn-task { background: linear-gradient(90deg, #16a34a, #0ea5a4); }
               </style>
             </head>
             <body>
@@ -149,6 +152,12 @@ jobs:
                     <h2>PolicyPulse</h2>
                     <p>View ABSLI plans, run premium projections, and monitor adjustment logs in admin mode.</p>
                     <a class="btn btn-ins" href="./insurance-app-frontend/">Open Insurance App</a>
+                  </article>
+                  <article class="card">
+                    <span class="tag task">Task Hub</span>
+                    <h2>Pixel Task Nexus</h2>
+                    <p>Role-based collaborative task management with task bucket pickup and manager nudges.</p>
+                    <a class="btn btn-task" href="./task-collab-pixel/">Open Task Hub</a>
                   </article>
                 </section>
               </main>
