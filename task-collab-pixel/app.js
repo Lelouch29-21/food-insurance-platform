@@ -21,6 +21,13 @@ const PRIORITY_META = {
   high: { label: "High", className: "priority-high" },
 };
 
+const DEPENDENCY_META = {
+  none: { label: "No External", className: "dependency-none" },
+  low: { label: "Low", className: "dependency-low" },
+  medium: { label: "Medium", className: "dependency-medium" },
+  high: { label: "High", className: "dependency-high" },
+};
+
 const BOARD_STATUSES = ["in_progress", "blocked", "done"];
 
 const uiState = {
@@ -110,6 +117,9 @@ function createSeedState() {
     status: "bucket",
     createdBy: "u-manager",
     assignedTo: null,
+    dependencyFactor: "medium",
+    dependentOn: "u-rina",
+    dependencyNotes: "Waiting for design-system icon set before final pass.",
     dueDate: dateOffset(3),
     internalEstimate: estimateFromDetails("medium", "onboarding checklist"),
     comments: [],
@@ -134,6 +144,9 @@ function createSeedState() {
     status: "in_progress",
     createdBy: "u-manager",
     assignedTo: "u-alex",
+    dependencyFactor: "high",
+    dependentOn: "u-manager",
+    dependencyNotes: "Needs manager approval on section hierarchy and legal wording.",
     dueDate: dateOffset(5),
     internalEstimate: estimateFromDetails("high", "visual system update"),
     comments: [
@@ -171,6 +184,9 @@ function createSeedState() {
     status: "blocked",
     createdBy: "u-manager",
     assignedTo: "u-sam",
+    dependencyFactor: "high",
+    dependentOn: "u-admin",
+    dependencyNotes: "Pending compliance response from admin/legal stream.",
     dueDate: dateOffset(4),
     internalEstimate: estimateFromDetails("low", "faq compilation"),
     comments: [
@@ -201,6 +217,9 @@ function createSeedState() {
     status: "done",
     createdBy: "u-manager",
     assignedTo: "u-rina",
+    dependencyFactor: "low",
+    dependentOn: "u-manager",
+    dependencyNotes: "Manager sign-off required at closure.",
     dueDate: dateOffset(-1),
     internalEstimate: estimateFromDetails("medium", "retrospective notes"),
     comments: [
@@ -224,7 +243,7 @@ function createSeedState() {
   };
 
   return {
-    version: 2,
+    version: 3,
     users,
     tasks: [taskA, taskB, taskC, taskD],
     nudges: [
@@ -288,6 +307,9 @@ function sanitizeState(input) {
       status: STATUS_META[task.status] ? task.status : "bucket",
       createdBy: task.createdBy ? String(task.createdBy) : "",
       assignedTo: task.assignedTo ? String(task.assignedTo) : null,
+      dependencyFactor: normalizeDependencyFactor(task.dependencyFactor),
+      dependentOn: task.dependentOn ? String(task.dependentOn) : null,
+      dependencyNotes: String(task.dependencyNotes || ""),
       dueDate: task.dueDate ? String(task.dueDate) : null,
       internalEstimate:
         task.internalEstimate && typeof task.internalEstimate === "object"
@@ -334,7 +356,7 @@ function sanitizeState(input) {
     }));
 
   return {
-    version: Number(input.version || 2),
+    version: Number(input.version || 3),
     users,
     tasks,
     nudges,
@@ -674,6 +696,9 @@ function renderLogin() {
 
 function renderManagerPanel() {
   const assignableTasks = sortedTasks().filter((task) => task.assignedTo && task.status !== "done");
+  const dependencyOwnerOptions = state.users
+    .map((candidate) => `<option value="${escapeHtml(candidate.id)}">${escapeHtml(candidate.name)}</option>`)
+    .join("");
 
   return `
     <section class="panel pixel-panel">
@@ -706,8 +731,33 @@ function renderManagerPanel() {
           <input id="taskDueDate" name="dueDate" type="date" />
         </div>
         <div class="field">
+          <label for="taskDependencyFactor">Dependency Factor</label>
+          <select id="taskDependencyFactor" name="dependencyFactor">
+            <option value="none" selected>No External</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="taskDependentOn">Dependent On</label>
+          <select id="taskDependentOn" name="dependentOn">
+            <option value="">No specific owner</option>
+            ${dependencyOwnerOptions}
+          </select>
+        </div>
+        <div class="field">
           <label for="taskLabel">Label (Optional)</label>
           <input id="taskLabel" name="label" maxlength="28" placeholder="Ops, Design, Policy" />
+        </div>
+        <div class="field full">
+          <label for="taskDependencyNotes">Dependency Note (Optional)</label>
+          <input
+            id="taskDependencyNotes"
+            name="dependencyNotes"
+            maxlength="140"
+            placeholder="Waiting on compliance review, design handoff, or API release"
+          />
         </div>
         <div class="field full">
           <button class="btn primary" type="submit">Add To Bucket</button>
@@ -804,6 +854,8 @@ function renderTaskCard(task, user, section) {
   const creator = displayUserName(task.createdBy);
   const priorityMeta = PRIORITY_META[task.priority] || PRIORITY_META.medium;
   const statusMeta = STATUS_META[task.status] || STATUS_META.bucket;
+  const dependencyMeta = DEPENDENCY_META[normalizeDependencyFactor(task.dependencyFactor)] || DEPENDENCY_META.none;
+  const dependencyOwner = task.dependentOn ? displayUserName(task.dependentOn) : "No owner";
 
   return `
     <article class="task-card">
@@ -812,6 +864,7 @@ function renderTaskCard(task, user, section) {
         <div class="meta-row">
           <span class="priority-pill ${priorityMeta.className}">${priorityMeta.label}</span>
           <span class="status-pill ${statusMeta.className}">${statusMeta.label}</span>
+          <span class="dependency-pill ${dependencyMeta.className}">Dependency: ${dependencyMeta.label}</span>
         </div>
       </div>
 
@@ -819,6 +872,7 @@ function renderTaskCard(task, user, section) {
 
       <div class="meta-row text-muted">
         <span>Assignee: ${escapeHtml(assignee)}</span>
+        <span>Depends On: ${escapeHtml(dependencyOwner)}</span>
         <span>Due: ${escapeHtml(formatDate(task.dueDate))}</span>
         <span>By: ${escapeHtml(creator)}</span>
       </div>
@@ -1063,12 +1117,22 @@ function renderTaskModal(user) {
 
   const comments = [...task.comments].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const canAssign = canManage(user);
+  const dependencyMeta = DEPENDENCY_META[normalizeDependencyFactor(task.dependencyFactor)] || DEPENDENCY_META.none;
+  const dependencyOwner = task.dependentOn ? displayUserName(task.dependentOn) : "No owner";
   const assigneeOptions = state.users
     .map(
       (candidate) =>
         `<option value="${escapeHtml(candidate.id)}" ${task.assignedTo === candidate.id ? "selected" : ""}>${escapeHtml(
           candidate.name
         )} (${escapeHtml(candidate.role)})</option>`
+    )
+    .join("");
+  const dependencyOwnerOptions = state.users
+    .map(
+      (candidate) =>
+        `<option value="${escapeHtml(candidate.id)}" ${task.dependentOn === candidate.id ? "selected" : ""}>${escapeHtml(
+          candidate.name
+        )}</option>`
     )
     .join("");
 
@@ -1089,25 +1153,55 @@ function renderTaskModal(user) {
           <span class="priority-pill ${(PRIORITY_META[task.priority] || PRIORITY_META.medium).className}">${
     (PRIORITY_META[task.priority] || PRIORITY_META.medium).label
   }</span>
+          <span class="dependency-pill ${dependencyMeta.className}">Dependency: ${dependencyMeta.label}</span>
           <span class="pill">Assignee: ${escapeHtml(displayUserName(task.assignedTo))}</span>
+          <span class="pill">Depends On: ${escapeHtml(dependencyOwner)}</span>
           <span class="pill">Due: ${escapeHtml(formatDate(task.dueDate))}</span>
         </div>
+        ${
+          task.dependencyNotes
+            ? `<p class="task-description"><strong>Dependency Note:</strong> ${escapeHtml(task.dependencyNotes)}</p>`
+            : ""
+        }
 
         ${
           canAssign
             ? `
             <form id="assign-form" class="inline-form">
               <input type="hidden" name="taskId" value="${escapeHtml(task.id)}" />
-              <div class="split">
+              <div class="split split-even">
                 <select name="assigneeId">
                   <option value="">Return to bucket (unassigned)</option>
                   ${assigneeOptions}
                 </select>
-                <button class="btn" type="submit">Apply Assignment</button>
+                <select name="dependencyFactor">
+                  <option value="none" ${normalizeDependencyFactor(task.dependencyFactor) === "none" ? "selected" : ""}>No External</option>
+                  <option value="low" ${normalizeDependencyFactor(task.dependencyFactor) === "low" ? "selected" : ""}>Low</option>
+                  <option value="medium" ${normalizeDependencyFactor(task.dependencyFactor) === "medium" ? "selected" : ""}>Medium</option>
+                  <option value="high" ${normalizeDependencyFactor(task.dependencyFactor) === "high" ? "selected" : ""}>High</option>
+                </select>
               </div>
+              <div class="split split-even">
+                <select name="dependentOn">
+                  <option value="">No specific owner</option>
+                  ${dependencyOwnerOptions}
+                </select>
+                <input name="dependencyNotes" maxlength="140" value="${escapeHtml(task.dependencyNotes || "")}" placeholder="Dependency note (optional)" />
+              </div>
+              <div class="inline-actions">
+                <button class="btn" type="submit">Apply Task Controls</button>
+              </div>
+              <p class="text-muted">Managers/Admins can update assignee and dependency ownership from here.</p>
             </form>
           `
-            : ""
+            : `
+            <div class="text-muted">Dependency Owner: ${escapeHtml(dependencyOwner)}</div>
+            ${
+              task.dependencyNotes
+                ? `<div class="text-muted">Dependency Note: ${escapeHtml(task.dependencyNotes)}</div>`
+                : ""
+            }
+          `
         }
 
         <section>
@@ -1349,6 +1443,10 @@ function handleSubmit(event) {
     const description = String(formData.get("description") || "").trim();
     const priority = String(formData.get("priority") || "medium");
     const dueDate = String(formData.get("dueDate") || "").trim();
+    const dependencyFactor = normalizeDependencyFactor(String(formData.get("dependencyFactor") || "none"));
+    const dependencyOwnerInput = String(formData.get("dependentOn") || "").trim() || null;
+    const dependentOn = dependencyFactor === "none" ? null : normalizeDependencyOwner(dependencyOwnerInput);
+    const dependencyNotes = String(formData.get("dependencyNotes") || "").trim();
     const label = String(formData.get("label") || "").trim();
 
     if (!title || !description) {
@@ -1367,6 +1465,9 @@ function handleSubmit(event) {
       status: "bucket",
       createdBy: user.id,
       assignedTo: null,
+      dependencyFactor,
+      dependentOn,
+      dependencyNotes,
       dueDate: dueDate || null,
       internalEstimate: estimateFromDetails(priority, description),
       comments: [],
@@ -1375,7 +1476,11 @@ function handleSubmit(event) {
       updatedAt: now,
     };
 
-    addHistory(task, user.id, `${user.name} created the task in the pending bucket.`);
+    const dependencyContext =
+      dependencyFactor === "none"
+        ? "No external dependency."
+        : `Dependency ${DEPENDENCY_META[dependencyFactor].label}${dependentOn ? ` on ${displayUserName(dependentOn)}` : ""}.`;
+    addHistory(task, user.id, `${user.name} created the task in the pending bucket. ${dependencyContext}`);
     state.tasks.push(task);
     saveState();
     form.reset();
@@ -1457,22 +1562,53 @@ function handleSubmit(event) {
     const formData = new FormData(form);
     const taskId = String(formData.get("taskId") || "");
     const assigneeId = String(formData.get("assigneeId") || "").trim();
+    const dependencyFactor = normalizeDependencyFactor(String(formData.get("dependencyFactor") || "none"));
+    const dependencyOwnerInput = String(formData.get("dependentOn") || "").trim() || null;
+    const dependentOn = dependencyFactor === "none" ? null : normalizeDependencyOwner(dependencyOwnerInput);
+    const dependencyNotes = String(formData.get("dependencyNotes") || "").trim();
     const task = state.tasks.find((item) => item.id === taskId);
 
     if (!task) {
       return;
     }
 
+    const previousAssignee = task.assignedTo || null;
+    const previousDependencyFactor = normalizeDependencyFactor(task.dependencyFactor);
+    const previousDependentOn = task.dependentOn || null;
+    const previousDependencyNotes = String(task.dependencyNotes || "");
+
     task.assignedTo = assigneeId || null;
     task.status = task.assignedTo ? (task.status === "done" ? "done" : "in_progress") : "bucket";
+    task.dependencyFactor = dependencyFactor;
+    task.dependentOn = dependentOn;
+    task.dependencyNotes = dependencyNotes;
     task.updatedAt = new Date().toISOString();
 
-    if (task.assignedTo) {
+    const assigneeChanged = previousAssignee !== task.assignedTo;
+    const dependencyChanged =
+      previousDependencyFactor !== task.dependencyFactor ||
+      previousDependentOn !== task.dependentOn ||
+      previousDependencyNotes !== task.dependencyNotes;
+
+    if (assigneeChanged && task.assignedTo) {
       addHistory(task, user.id, `${user.name} assigned this task to ${displayUserName(task.assignedTo)}.`);
-      setFlash("Task assignment updated.", "success");
-    } else {
+    } else if (assigneeChanged) {
       addHistory(task, user.id, `${user.name} returned this task to the pending bucket.`);
-      setFlash("Task returned to bucket.", "success");
+    }
+
+    if (dependencyChanged) {
+      const ownerText = task.dependentOn ? ` on ${displayUserName(task.dependentOn)}` : "";
+      addHistory(
+        task,
+        user.id,
+        `${user.name} updated dependency to ${DEPENDENCY_META[task.dependencyFactor].label}${ownerText}.`
+      );
+    }
+
+    if (assigneeChanged || dependencyChanged) {
+      setFlash("Task controls updated.", "success");
+    } else {
+      setFlash("No changes detected in task controls.", "success");
     }
 
     saveState();
@@ -1571,6 +1707,17 @@ function displayUserName(userId) {
   }
   const user = state.users.find((member) => member.id === userId);
   return user ? user.name : "Unknown";
+}
+
+function normalizeDependencyFactor(value) {
+  return DEPENDENCY_META[value] ? value : "none";
+}
+
+function normalizeDependencyOwner(userId) {
+  if (!userId) {
+    return null;
+  }
+  return state.users.some((member) => member.id === userId) ? userId : null;
 }
 
 function canManage(user) {
