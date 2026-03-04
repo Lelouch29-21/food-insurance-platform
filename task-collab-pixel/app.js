@@ -746,7 +746,7 @@ function renderManagerPanel() {
         </div>
       </div>
 
-      <form id="create-task-form" class="form-grid">
+      <form id="create-task-form" class="form-grid form-centered">
         <div class="field">
           <label for="taskTitle">Task Title</label>
           <input id="taskTitle" name="title" maxlength="90" required />
@@ -926,9 +926,16 @@ function renderDependencyNodesSection() {
           : '<div class="empty-state">No dependency nodes available yet.</div>'
       }
 
+      ${
+        graph.fallbackMode
+          ? '<div class="sync-banner">No explicit dependency links found yet. Showing collaboration links based on assignment and creator relationships.</div>'
+          : ""
+      }
+
       <div class="node-legend-row">
         <span class="pill">Blue lines: Internal team dependency</span>
         <span class="pill">Rose dashed: External team/company dependency</span>
+        ${graph.fallbackMode ? '<span class="pill">Slate dashed: Collaboration fallback link</span>' : ""}
       </div>
     </section>
   `;
@@ -945,10 +952,16 @@ function renderDependencyGraphSvg(graph) {
       }
       const midX = (from.x + to.x) / 2;
       const midY = (from.y + to.y) / 2;
+      const edgeClass =
+        edge.kind === "fallback"
+          ? "node-edge-fallback"
+          : edge.scope === "external"
+            ? "node-edge-external"
+            : "node-edge-team";
       return `
         <g>
           <line
-            class="node-edge ${edge.scope === "external" ? "node-edge-external" : "node-edge-team"}"
+            class="node-edge ${edgeClass}"
             x1="${from.x}"
             y1="${from.y}"
             x2="${to.x}"
@@ -1039,6 +1052,7 @@ function buildDependencyGraph() {
   const nodes = [...userNodes, ...externalNodes];
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const edgeMap = new Map();
+  const fallbackEdgeMap = new Map();
 
   state.tasks.forEach((task) => {
     const factor = normalizeDependencyFactor(task.dependencyFactor);
@@ -1065,16 +1079,34 @@ function buildDependencyGraph() {
     }
 
     const edgeKey = `${source}|${target}|${scope}`;
-    const current = edgeMap.get(edgeKey) || { source, target, scope, count: 0 };
+    const current = edgeMap.get(edgeKey) || { source, target, scope, count: 0, kind: "dependency" };
     current.count += 1;
     edgeMap.set(edgeKey, current);
   });
+
+  if (edgeMap.size === 0) {
+    state.tasks.forEach((task) => {
+      const source = task.assignedTo;
+      const target = task.createdBy;
+      if (!source || !target || source === target || !nodeById.has(source) || !nodeById.has(target)) {
+        return;
+      }
+
+      const edgeKey = `${source}|${target}|fallback`;
+      const current = fallbackEdgeMap.get(edgeKey) || { source, target, scope: "team", count: 0, kind: "fallback" };
+      current.count += 1;
+      fallbackEdgeMap.set(edgeKey, current);
+    });
+  }
+
+  const resolvedEdges = edgeMap.size ? [...edgeMap.values()] : [...fallbackEdgeMap.values()];
 
   return {
     width,
     height,
     nodes,
-    edges: [...edgeMap.values()],
+    edges: resolvedEdges,
+    fallbackMode: edgeMap.size === 0 && fallbackEdgeMap.size > 0,
   };
 }
 
@@ -1443,7 +1475,7 @@ function renderTaskModal(user) {
         ${
           canAssign
             ? `
-            <form id="assign-form" class="inline-form">
+            <form id="assign-form" class="inline-form form-centered">
               <input type="hidden" name="taskId" value="${escapeHtml(task.id)}" />
               <div class="split split-even">
                 <select name="assigneeId">

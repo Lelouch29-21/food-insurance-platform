@@ -831,6 +831,11 @@ textarea:focus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.form-centered {
+  width: min(980px, 100%);
+  margin-inline: auto;
+}
+
 .node-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -871,24 +876,34 @@ textarea:focus {
 }
 
 .node-edge {
-  stroke-width: 2.8;
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: 0.95;
 }
 
 .node-edge-team {
-  stroke: #5d8fd2;
+  stroke: #2f6eb8;
 }
 
 .node-edge-external {
-  stroke: #ca738a;
-  stroke-dasharray: 7 6;
+  stroke: #b63f63;
+  stroke-dasharray: 10 7;
+}
+
+.node-edge-fallback {
+  stroke: #5a6a89;
+  stroke-dasharray: 6 6;
 }
 
 .node-edge-count {
   font-size: 11px;
-  fill: #304a7c;
+  fill: #22375f;
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: #f6f9ff;
+  stroke-width: 2.5;
 }
 
 .graph-node {
