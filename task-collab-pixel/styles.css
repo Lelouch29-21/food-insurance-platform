@@ -219,7 +219,7 @@ p {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.9rem;
 }
 
@@ -483,6 +483,16 @@ textarea:focus {
   animation: riseIn 300ms ease;
 }
 
+.task-card.task-pinned {
+  border-color: #9bbce9;
+  box-shadow: 3px 3px 0 0 #d8e6ff;
+}
+
+.task-card.task-overdue {
+  border-color: #e8a7b3;
+  box-shadow: 3px 3px 0 0 #f7dce3;
+}
+
 .task-head {
   display: flex;
   justify-content: space-between;
@@ -518,6 +528,12 @@ textarea:focus {
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.involvement-pill {
+  border-color: #f2d08d;
+  color: #8c560f;
+  background: #fff8e9;
 }
 
 .dependency-none {
@@ -604,10 +620,23 @@ textarea:focus {
   color: #177448;
 }
 
+.status-overdue {
+  background: #fff2f5;
+  border-color: #f2b7c4;
+  color: #9a2f49;
+}
+
 .task-description {
   color: var(--ink-soft);
   line-height: 1.45;
   font-size: 0.94rem;
+}
+
+.task-ref-link {
+  color: #0f63b8;
+  text-decoration: underline;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .task-footer {
@@ -618,6 +647,19 @@ textarea:focus {
   flex-wrap: wrap;
   border-top: 1px dashed #dce5fb;
   padding-top: 0.45rem;
+}
+
+.halt-note {
+  border: 2px dashed #f0c98b;
+  background: #fff9ef;
+  color: #8b5a10;
+  padding: 0.35rem 0.5rem;
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+
+.halt-note-inline {
+  font-size: 0.84rem;
 }
 
 .task-actions {
@@ -648,6 +690,15 @@ textarea:focus {
   background: #fdfefe;
   padding: 0.55rem;
   box-shadow: 2px 2px 0 0 #e4e9fb;
+}
+
+.involvement-row {
+  border-left: 5px solid #ebcc93;
+  background: linear-gradient(180deg, #fffdf7, #ffffff);
+}
+
+.involvement-work {
+  color: #34466e;
 }
 
 .notice.unread {
@@ -821,6 +872,17 @@ textarea:focus {
   gap: 0.4rem;
 }
 
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 2px solid #d4def4;
+  background: #f8fbff;
+  padding: 0.25rem 0.5rem;
+  font-weight: 700;
+  color: #374971;
+}
+
 .split {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -832,8 +894,10 @@ textarea:focus {
 }
 
 .form-centered {
-  width: min(980px, 100%);
+  width: min(960px, calc(100% - 1.5rem));
   margin-inline: auto;
+  justify-self: center;
+  transform: translateX(-2px);
 }
 
 .node-summary-grid {
@@ -859,7 +923,7 @@ textarea:focus {
 
 .node-canvas-shell {
   border: 2px solid #cad8f4;
-  background: linear-gradient(180deg, #f8fbff, #f3f8ff);
+  background: linear-gradient(180deg, #f5f9ff, #edf4ff);
   padding: 0.4rem;
   display: flex;
   justify-content: center;
@@ -874,40 +938,44 @@ textarea:focus {
 }
 
 .node-graph-bg {
-  fill: rgba(255, 255, 255, 0.88);
-  stroke: #c9d8f6;
+  fill: rgba(255, 255, 255, 0.95);
+  stroke: #b9cdf0;
   stroke-width: 2;
 }
 
 .node-edge {
-  stroke-width: 4;
+  stroke-width: 5;
   stroke-linecap: round;
-  opacity: 0.95;
+  opacity: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .node-edge-team {
-  stroke: #2f6eb8;
+  stroke: #1f62b5;
+  filter: drop-shadow(0 0 1.6px rgba(31, 98, 181, 0.42));
 }
 
 .node-edge-external {
-  stroke: #b63f63;
-  stroke-dasharray: 10 7;
+  stroke: #b13e65;
+  stroke-dasharray: 12 6;
+  filter: drop-shadow(0 0 1.6px rgba(177, 62, 101, 0.34));
 }
 
 .node-edge-fallback {
-  stroke: #5a6a89;
-  stroke-dasharray: 6 6;
+  stroke: #495f86;
+  stroke-dasharray: 8 6;
+  filter: drop-shadow(0 0 1.2px rgba(73, 95, 134, 0.3));
 }
 
 .node-edge-count {
-  font-size: 11px;
-  fill: #22375f;
+  font-size: 12px;
+  fill: #13284d;
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: middle;
   paint-order: stroke;
   stroke: #f6f9ff;
-  stroke-width: 2.5;
+  stroke-width: 3;
 }
 
 .graph-node {
@@ -991,7 +1059,7 @@ textarea:focus {
 
 @media (max-width: 1100px) {
   .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .workspace-grid {
@@ -1023,7 +1091,7 @@ textarea:focus {
   }
 
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .form-grid {

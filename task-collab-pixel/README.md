@@ -12,6 +12,16 @@ A light-mode collaborative task management web app with pixel-inspired UI.
 - Manager/admin nudges to specific assignees
 - Dependency factor tracking with internal-team or external-team/company ownership
 - Dependency node map showing people/partners and per-user project participation counts
+- Smart search/filter/sort controls (status, priority, assignee, dependency source, pinned, overdue)
+- Overdue task detection and dashboard metrics
+- Task pinning and per-user watchlist
+- Mention inbox from `@username` comment tags
+- Checklist subtasks per task
+- Work log tracking (hours + notes)
+- Per-person involvement stars (1-5) with work summary notes on each task
+- Attachment/reference link management per task
+- Bulk manager actions on selected tasks
+- Workspace backup export/import (JSON)
 - Admin-only user/role management
 - Internal multi-point task estimate saved in state and hidden from UI
 - Responsive layout and animated interface
