@@ -826,7 +826,6 @@ function render() {
 
       ${renderFlash()}
       ${renderSyncBanner()}
-      ${renderFilterPanel(user)}
 
       <section class="stats-grid">
         <article class="stat-card pixel-panel">

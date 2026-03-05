@@ -12,7 +12,6 @@ A light-mode collaborative task management web app with pixel-inspired UI.
 - Manager/admin nudges to specific assignees
 - Dependency factor tracking with internal-team or external-team/company ownership
 - Dependency node map showing people/partners and per-user project participation counts
-- Smart search/filter/sort controls (status, priority, assignee, dependency source, pinned, overdue)
 - Overdue task detection and dashboard metrics
 - Task pinning and per-user watchlist
 - Mention inbox from `@username` comment tags
